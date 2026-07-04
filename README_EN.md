@@ -73,10 +73,14 @@ Reasons for recommendation:
 
 Python 3.10+ is recommended
 
-Install dependencies:
+First install the Python dependencies:
 
 ```bash
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
+```
+
+Then install the Playwright browser dependency. If you encounter complex CAPTCHAs, you can invoke the script to open the browser and manually enter the account credentials:
+```bash
 playwright install chromium
 ```
 

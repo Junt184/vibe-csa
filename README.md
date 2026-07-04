@@ -73,10 +73,14 @@ git clone https://gitee.com/ok-helloworld/vibe-csa
 
 建议使用 Python 3.10+
 
-安装依赖：
+先安装 Python 依赖：
 
 ```bash
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
+```
+
+再安装 Playwright 浏览器依赖，遇到复杂验证码可以调用脚本手工输入账号密码：
+```bash
 playwright install chromium
 ```
 
