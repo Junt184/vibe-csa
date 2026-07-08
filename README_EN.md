@@ -120,7 +120,7 @@ Authorization Statement: Written authorization obtained, authorization scope cov
 Test Account (1):
 Username: admin
 Password: 123456
-Login Method: You call the script to open the browser, I will manually enter the username and password to log in
+Login Method: You invoke `scripts/extract_credentials.py` to open the browser, and I will manually enter the credentials to log in
 
 White hat professional ethics: Allowed to delete, update, and clean up data created by yourself, files uploaded by yourself, and records inserted by yourself during the testing process, in order to verify deletion/editing/recovery/recycling vulnerabilities; prohibited from performing destructive operations on original business data, others' data, and production data. Allowed to upload files for file upload testing.
 
