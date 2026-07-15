@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from html import escape
 
+from report_coverage import apply_report_coverage
+
 
 # ──────────────────────────────────────────────
 # CLI
@@ -1544,8 +1546,13 @@ def main():
     if schema != "3.0":
         print(f"[WARN] schema_version={schema}，本脚本针对 3.0 优化")
 
+    coverage = apply_report_coverage(data, base_dir=inp.parent)
     n = len(data.get("findings",[]))
     print(f"[INFO] 漏洞数量: {n}  阶段: {data.get('audit',{}).get('stage','—')}")
+    print(
+        f"[INFO] 自动覆盖统计: reviewed_files={coverage['reviewed_files']} "
+        f"ealoc={coverage['ealoc']}"
+    )
 
     html = build_html(data)
     out.parent.mkdir(parents=True, exist_ok=True)

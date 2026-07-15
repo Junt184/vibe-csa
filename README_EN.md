@@ -6,7 +6,7 @@
 
 # Vibe CSA
 
-> Current Version: v1.0.16
+> Current Version: v1.0.17
 
 Vibe CSA (Code Security Audit) is a code audit tool based on AI Agent architecture, adopting a multi-Agent parallel execution architecture. It statically audits source code with a "God's eye view" and dynamically verifies vulnerabilities through "combat simulation", ensuring the comprehensiveness and accuracy of Web vulnerability discovery, outputting stable and reliable security reports, and providing actionable remediation recommendations. Main capabilities: AI Code Audit and AI Vulnerability Assessment.
 
@@ -20,10 +20,9 @@ Project Features:
 - [Who Is It For](#who-is-it-for)
 - [Important Notes](#important-notes)
 - [Quick Start](#quick-start)
-- [Environment Dependencies](#environment-dependencies)
+- [Runtime Dependencies](#runtime-dependencies)
 - [Working Directory & Report Output](#working-directory--report-output)
 - [Prompt Examples](#prompt-examples)
-- [Workflow Diagram](#workflow-diagram)
 
 ## Who Is It For
 
@@ -52,7 +51,7 @@ Help me install the vibe-csa skill (including environment dependencies), reposit
 ```
 
 
-## Environment Dependencies
+## Runtime Dependencies
 
 ### Git
 
@@ -101,7 +100,10 @@ It is recommended to use a separate working directory for each code audit task t
 ### Static Audit Prompt
 
 ```text
-Use the `vibe-csa` skill to perform static audit on the source code in the current directory, simultaneously launching 7 static audit agents for concurrent divisional audit. Each agent independently generates `workDir/agent-results/*.json`, and finally use the `merge_static_results.py` script to aggregate results, generating `workDir/static-merged.json`, and use the script to remove duplicate vulnerability items
+Use the `vibe-csa` skill to perform a static audit on the source code in the current directory:
+1. First, launch the `static-code-map` agent and have it directly generate `workDir/agent-results/agent-static-code-map.json`;
+2. Then launch 6 static audit agents in real parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
+3. Finally, use the `merge_static_results.py` script to aggregate the results into `workDir/static-merged.json`, and run the deduplication script to remove duplicate vulnerability items.
 
 Generate HTML and Word reports from the final JSON report: use the `scripts/vibe_csa_html.py` and `scripts/vibe_csa_report.py` scripts to export stable report results.
 ```
@@ -110,10 +112,13 @@ Generate HTML and Word reports from the final JSON report: use the `scripts/vibe
 
 ```text
 Stage 1: Static Audit
-Use the `vibe-csa` skill to perform static audit on the source code in the current directory, simultaneously launching 7 static audit agents for concurrent divisional audit. Each agent independently generates `workDir/agent-results/*.json`, and finally use the `merge_static_results.py` script to aggregate results, generating `workDir/static-merged.json`, and use the script to remove duplicate vulnerability items
+Use the `vibe-csa` skill to perform a static audit on the source code in the current directory:
+1. First, launch the `static-code-map` agent and have it directly generate `workDir/agent-results/agent-static-code-map.json`;
+2. Then launch 6 static audit agents in real parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
+3. Finally, use the `merge_static_results.py` script to aggregate the results into `workDir/static-merged.json`, and run the deduplication script to remove duplicate vulnerability items.
 
 Stage 2: Dynamic Vulnerability Verification
-Only perform dynamic verification on "critical/high-risk/sampled medium-risk" vulnerabilities found in static audit: first use `scripts/prepare_dynamic_pocs.py` to simultaneously generate `workDir/static-findings/FINDING-*.json`, `workDir/dynamic-findings/FINDING-*.json` and `workDir/dynamic-state.json`, then launch `1~5` `dynamic-verifier` custom sub-Agents for concurrent vulnerability verification, based on the verification queue in `dynamic-state.json`, read the corresponding static reference files and only write back dynamic finding files; after all are completed, use the script to aggregate and generate `workDir/dynamic-verified.json`
+Only perform dynamic verification for vulnerabilities rated "critical / high-risk / sampled medium-risk" in the static audit results: first use `scripts/prepare_dynamic_pocs.py` to generate `workDir/static-findings/FINDING-*.json`, `workDir/dynamic-findings/FINDING-*.json`, and `workDir/dynamic-state.json` at the same time; then launch `1~5` `dynamic-verifier` custom sub-Agents to verify vulnerabilities concurrently. Based on the verification queue in `dynamic-state.json`, each sub-Agent reads the corresponding static reference file and only writes back the dynamic finding file. After all verification is complete, use the script to aggregate the results into `workDir/dynamic-verified.json`
 
 Target URL: https://example.com
 Authorization Statement: Written authorization obtained, authorization scope covers all interfaces and pages of the target

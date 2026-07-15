@@ -6,7 +6,7 @@
 
 # Vibe CSA
 
-> 当前版本：v1.0.16
+> 当前版本：v1.0.17
 
 Vibe CSA (Code Security Audit)，是一款基于 AI Agent 架构的代码审计工具，采用多 Agent 并行执行架构，用“上帝视角”静态审计源代码，用“实战模拟”动态验证漏洞，保证了 Web 漏洞挖掘的全面性和准确性，输出稳定可靠的安全报告，并提供可落地整改建议。主要能力：AI 代码审计和 AI 漏洞评估。
 
@@ -101,7 +101,10 @@ playwright install chromium
 ### 静态审计提示词
 
 ```text
-使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，同时启动 7 个静态审计 agent 并发执行分工审计，每个 agent 独立生成 `workDir/agent-results/*.json` ，最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用脚本去除重复漏洞项
+使用 `vibe-csa` 技能对当前目录源码做静态审计：
+1. 先启动 `static-code-map` agent，并由它直接生成 `workDir/agent-results/agent-static-code-map.json`；
+2. 再真实并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
+3. 最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用去重脚本清除重复漏洞项。
 
 将最终 JSON 报告生成 HTML 和 Word 报告：使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
 ```
@@ -110,7 +113,10 @@ playwright install chromium
 
 ```text
 阶段一：静态审计
-使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，同时启动 7 个静态审计 agent 并发执行分工审计，每个 agent 独立生成 `workDir/agent-results/*.json` ，最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用脚本去除重复漏洞项
+使用 `vibe-csa` 技能对当前目录源码做静态审计：
+1. 先启动 `static-code-map` agent，并由它直接生成 `workDir/agent-results/agent-static-code-map.json`；
+2. 再真实并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
+3. 最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用去重脚本清除重复漏洞项。
 
 阶段二：动态漏洞验证
 只对静态审计到的“严重/高危/抽样中危”的漏洞进行动态验证：先使用 `scripts/prepare_dynamic_pocs.py` 同时生成 `workDir/static-findings/FINDING-*.json`、`workDir/dynamic-findings/FINDING-*.json` 和 `workDir/dynamic-state.json`，再启动 `1~5` 个 `dynamic-verifier` 自定义子 Agent 并发执行漏洞验证，基于 `dynamic-state.json` 的验证队列，读取对应静态参考文件并只回写动态 finding 文件；全部完成后，再使用脚本汇总生成 `workDir/dynamic-verified.json`

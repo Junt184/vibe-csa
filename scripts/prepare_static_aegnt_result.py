@@ -193,6 +193,8 @@ def build_skeleton(template: dict[str, Any], args: argparse.Namespace) -> dict[s
     audit["scope"] = args.scope
     audit["language"] = normalize_languages(args.language)
     audit["tool_versions"] = {}
+    # reviewed_files / ealoc are now report-side metrics, not static-agent output.
+    audit["coverage_summary"] = {}
     audit["audit_date"] = {"start": today, "end": today}
     audit["summary"] = {
         "total": 0,

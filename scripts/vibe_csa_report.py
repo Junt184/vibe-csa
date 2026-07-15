@@ -23,6 +23,8 @@ from docx.oxml.ns import qn, nsdecls
 from docx.oxml import parse_xml
 import matplotlib.pyplot as plt
 
+from report_coverage import apply_report_coverage
+
 COLORS = {
     'primary_dark': '#1a3a5c',
     'primary_cyan': '#4ecdc4',
@@ -486,6 +488,8 @@ def generate_report(data, logo_path, output_path):
         f"高危漏洞 {summary['high']} 个、中危漏洞 {summary['medium']} 个、低危漏洞 {summary['low']} 个。"
         f"已确认 {confirmed_count} 个，待验证 {hypothesis_count} 个，验证未成功 {failed_count} 个。")
 
+    coverage_summary = data['audit'].get('coverage_summary', {})
+
     # 风险等级统计表格
     add_heading_custom(doc, '1.1 风险等级统计', level=2, color=COLORS['text_gray'])
 
@@ -539,10 +543,51 @@ def generate_report(data, logo_path, output_path):
                 run.font.color.rgb = RGBColor(255, 255, 255)
                 run.font.bold = True
 
+    # 代码覆盖概览
+    add_heading_custom(doc, '1.2 代码覆盖概览', level=2, color=COLORS['text_gray'])
+
+    coverage_table = doc.add_table(rows=3, cols=2)
+    coverage_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    coverage_table.style = 'Table Grid'
+
+    coverage_headers = ['指标', '数值']
+    for i, header in enumerate(coverage_headers):
+        cell = coverage_table.rows[0].cells[i]
+        cell.text = header
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(11)
+                run.font.color.rgb = RGBColor(255, 255, 255)
+                run.font.name = 'Microsoft YaHei'
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), 'Microsoft YaHei')
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_cell_shading(cell, COLORS['primary_dark'][1:])
+
+    coverage_rows = [
+        ('已审文件', str(coverage_summary.get('reviewed_files', '—'))),
+        ('有效代码行 (EALOC)', str(coverage_summary.get('ealoc', '—'))),
+    ]
+
+    for row_idx, (label, value) in enumerate(coverage_rows, start=1):
+        row = coverage_table.rows[row_idx]
+        row.cells[0].text = label
+        row.cells[1].text = value
+        for cell_idx, cell in enumerate(row.cells):
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(10.5)
+                    run.font.name = 'Microsoft YaHei'
+                    run._element.rPr.rFonts.set(qn('w:eastAsia'), 'Microsoft YaHei')
+                    if cell_idx == 1:
+                        run.font.bold = True
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_cell_shading(row.cells[0], COLORS['bg_light'][1:])
+
     # =====================================================================
     # 图表展示
     # =====================================================================
-    add_heading_custom(doc, '1.2 统计图表', level=2, color=COLORS['text_gray'])
+    add_heading_custom(doc, '1.3 统计图表', level=2, color=COLORS['text_gray'])
 
     charts = generate_charts(data, temp_dir)
 
@@ -554,7 +599,7 @@ def generate_report(data, logo_path, output_path):
         p.paragraph_format.space_after = Pt(12)
 
     # 漏洞列表（含审计方法）
-    add_heading_custom(doc, '1.3 漏洞列表', level=2, color=COLORS['text_gray'])
+    add_heading_custom(doc, '1.4 漏洞列表', level=2, color=COLORS['text_gray'])
 
     findings = data['findings']
     audit_stage = data['audit'].get('stage', 'static_audit')
@@ -1052,6 +1097,12 @@ def main():
         if key not in data:
             print(f"[ERROR] JSON missing required field: {key}")
             sys.exit(1)
+
+    coverage = apply_report_coverage(data, base_dir=Path(args.input).parent)
+    print(
+        f"[INFO] 自动覆盖统计: reviewed_files={coverage['reviewed_files']} "
+        f"ealoc={coverage['ealoc']}"
+    )
 
     # 确保输出目录存在
     output_dir = os.path.dirname(args.output)

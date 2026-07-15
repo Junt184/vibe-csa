@@ -82,6 +82,7 @@ response_write
 2. 涉及动态查询、动态命令、动态模板、表达式执行、响应输出或 Header 写入的链路
 3. 存在跨函数、跨文件或跨组件传播的输入链路
 4. code map 标记的高风险模块和未覆盖区域
+5. 列表、搜索、筛选、排序、分页、导入、导出、报表、批量操作等“同模式多入口”功能
 
 如果 code map 不存在、为空或明显不完整，则退化为源码检索与源码细读，并在结果中记录覆盖缺口。
 
@@ -98,6 +99,22 @@ response_write
 4. 是否存在跨函数、跨文件或跨组件传播
 5. 是否存在框架默认安全机制被绕过的情况
 6. 是否仅为表面相似、不可达或实际不可利用路径
+
+#### 覆盖闭环要求
+
+发现首个高置信注入问题后，不得立即结束。必须继续检查以下“同根因变体”：
+
+1. 同一 Controller / Service 中复用相同查询拼接、排序拼接、模板渲染或命令构造的相邻方法
+2. 同一组列表、搜索、筛选、分页、导出、导入接口中，复用相同输入字段、Cookie 回读、排序字段或 where/order 拼接模式的路径
+3. 同一危险操作在不同入口、不同角色、不同分页分支、不同导出分支中的重复出现
+
+对每个候选变体，必须给出以下三种结论之一，禁止静默跳过：
+
+- 已形成 finding
+- 已回读源码并确认当前不可利用
+- 当前未完成覆盖，已在结果中记录为 coverage gap
+
+若多个入口属于同一代码根因，可合并为一条 finding，但必须在标题、描述、evidence refs 或 reviewed_files 中清楚写出受影响范围；若根因不同，则拆分为多条 finding。
 
 #### code-map 关联分析要求
 
@@ -144,7 +161,10 @@ workDir/agent-results/agent-static-injection.json
    - `fix.language`
    - `fix.before`
    - `fix.after`
-8. 参考 `core/coverage-gate.md` 记录本 Agent 可确认的覆盖信息；如无法准确汇总全局覆盖率，不要臆造最终 `coverage_summary`，最终汇总值由主流程统一生成
+8. 结果中应体现“覆盖闭环”结论：对已确认的同根因变体，要么并入 finding 影响范围，要么在 `reviewed_files` / 覆盖说明中明确写出已检查但未命中的相邻入口或剩余缺口
+9. Windows / PowerShell 环境下，若需回填长中文说明、HTML 片段、多行代码、带引号或反斜杠的证据文本，禁止直接在 shell 中拼接 JSON 覆盖结果文件；优先参考 `references/json-safe-update-static.md`
+10. 复杂说明性字段优先先写入临时 `.txt` 文件，再通过 `scripts/json_safe_update.py --set-file` 回填；对象或数组字段优先通过 `--set-json-file` / `--append-json-file` 回填
+11. 回填前后都必须确保目标 JSON 可被正常解析；若使用 `json_safe_update.py`，建议同时开启 `--check-text-quality`
 
 ### 阶段5：格式校验
 
@@ -155,6 +175,7 @@ references/agent-result-example.json
 ```
 
 确保结果 JSON 语法有效、层级正确、字段符合样例格式。
+Windows / PowerShell 下若结果中包含复杂说明文本，优先通过 `scripts/json_safe_update.py` 完成回填后再做校验。
 
 ## 静态 Agent 禁止事项
 

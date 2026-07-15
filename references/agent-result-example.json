@@ -18,14 +18,7 @@
     "mode": "<quick|standard|deep>",
     "scope": "<full|partial|incremental>",
     "tool_versions": {},
-    "coverage_summary": {
-      "tier1_pct": 100,
-      "tier2_pct": 90,
-      "tier3_pct": 70,
-      "total_pct": 88,
-      "reviewed_files": 0,
-      "ealoc": 0
-    },
+    "coverage_summary": {},
     "audit_date": {
       "start": "<YYYY-MM-DD>",
       "end": "<YYYY-MM-DD>"

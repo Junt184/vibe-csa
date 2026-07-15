@@ -101,6 +101,7 @@ workDir/agent-results/agent-static-code-map.json
 - 入口类型
 - 方法、路由、topic、command 或 job name
 - 源码位置
+- 入口族 / 同模式分组
 - handler 符号
 - 输入参数
 - 身份权限上下文
@@ -109,6 +110,15 @@ workDir/agent-results/agent-static-code-map.json
 - 相关危险操作
 - 相关状态变化
 - 标签
+
+对高风险模块，不得只记录单个代表入口。若同一 Controller / Service / Router 中存在列表、搜索、筛选、排序、分页、导入、导出、报表、批量操作等同模式多入口，应尽量把它们归并为同一入口族，并记录：
+
+- `family_id`：同一入口族标识
+- `family_role`：当前入口在该族中的角色，如 `list`、`search`、`page`、`export`、`import`
+- `sibling_entrypoints`：已识别的相邻入口或同族方法 ID
+- `coverage_notes`：当前族已展开范围与未展开范围
+
+若时间或上下文不足，至少要把未展开 sibling methods 或同族入口写入 `coverage.known_gaps`，避免后续静态 Agent误以为该模块已经覆盖完整。
 
 ### 3. 身份权限上下文抽取
 
@@ -290,6 +300,8 @@ workDir/agent-results/agent-static-code-map.json
   "entrypoints": [
     {
       "id": "EP001",
+      "family_id": "FAM-ORDER-PAY",
+      "family_role": "action",
       "kind": "http",
       "method": "POST",
       "route": "/api/orders/{id}/pay",
@@ -327,7 +339,9 @@ workDir/agent-results/agent-static-code-map.json
       "objects": ["Order", "Payment"],
       "operations": ["OP001", "OP002"],
       "state_changes": ["ST001"],
+      "sibling_entrypoints": [],
       "tags": ["payment", "state_change", "money"],
+      "coverage_notes": "",
       "notes": ""
     }
   ],
@@ -434,7 +448,14 @@ workDir/agent-results/agent-static-code-map.json
     "mapped_operation_count": 0,
     "mapped_object_count": 0,
     "high_risk_modules": [],
-    "known_gaps": []
+    "known_gaps": [
+      {
+        "module": "",
+        "gap_type": "unexpanded_siblings",
+        "related_family_id": "",
+        "details": ""
+      }
+    ]
   }
 }
 ```
@@ -456,6 +477,13 @@ workDir/agent-results/agent-static-code-map.json
 最重要字段。
 每个入口应尽量关联输入、鉴权、调用链、对象、操作、状态变化和标签。
 `entrypoints[].auth.login_required` 无法确认时使用 `"unknown"`，不得猜测为 `true` 或 `false`。
+
+推荐补充以下可选字段，用于减少“只命中代表入口、漏掉同族变体”的情况：
+
+- `family_id`：同一入口族标识
+- `family_role`：当前入口在入口族中的职责
+- `sibling_entrypoints`：同族相邻入口 ID
+- `coverage_notes`：该入口族当前已展开与未展开的范围
 
 入口数量很多时，优先记录：
 
@@ -517,6 +545,14 @@ crypto, random, config_refs, external_boundaries
 记录本次 code map 的覆盖范围和缺口。
 后续 Agent 不能盲信未覆盖区域。
 
+`known_gaps` 不应只写泛泛备注。优先记录以下缺口：
+
+- 高风险模块中未展开的相邻方法
+- 已识别但未完整展开的入口族
+- 已看到危险操作，但尚未回溯完整调用链的区域
+
+若能确定缺口属于某个入口族，优先填写 `related_family_id`。
+
 ## 去重规则
 
 - 相同 `kind + method + route + source.symbol` 的入口视为同一入口
@@ -538,6 +574,7 @@ crypto, random, config_refs, external_boundaries
 7. 不要深度审计配置项，只记录安全相关配置位置
 8. 不要因命名相似就断定对象归属、租户关系或状态流转
 9. JSON 必须语法有效、结构稳定、字段简洁
+10. Windows / PowerShell 环境下，若需回填长中文说明、HTML 片段、多行代码或带引号、反斜杠的文本，优先参考 `references/json-safe-update-static.md`，通过 `scripts/json_safe_update.py` 从临时文件安全回填，而不是在 shell 中直接拼接 JSON
 
 ## 输出
 
@@ -548,3 +585,4 @@ workDir/agent-results/agent-static-code-map.json
 ```
 
 确保 JSON 文件语法有效、字段简洁、事实可信、可被后续 6 个静态漏洞审计 Agent 直接消费。
+若运行在 Windows / PowerShell 下且内容较复杂，优先通过 `scripts/json_safe_update.py --set-file / --set-json-file` 更新目标文件后再做最终校验。

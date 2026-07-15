@@ -135,12 +135,6 @@ def normalize_coverage_summary(value: Any) -> dict[str, Any]:
         except (TypeError, ValueError):
             continue
 
-    for key in ("reviewed_files", "ealoc"):
-        raw = value.get(key)
-        if raw in (None, ""):
-            continue
-        normalized[key] = safe_int(raw, 0)
-
     return normalized
 
 
@@ -154,18 +148,15 @@ def resolve_merged_coverage(candidates: list[Any]) -> dict[str, Any]:
     if all(item == first for item in normalized[1:]):
         return first
 
-    # Per-agent coverage is often partial; keep percentages conservative, but let
-    # count-style fields fall back to the maximum observed value instead of zeroing out.
+    # Per-agent coverage is often partial; keep percentages conservative.
+    # Count-style metrics such as reviewed_files / ealoc are generated later
+    # during report export from final findings evidence instead of static-agent
+    # top-level coverage_summary fields.
     resolved: dict[str, Any] = {}
     for key in ("tier1_pct", "tier2_pct", "tier3_pct", "total_pct"):
         values = [item[key] for item in normalized if key in item]
         if values and all(value == values[0] for value in values[1:]):
             resolved[key] = values[0]
-
-    for key in ("reviewed_files", "ealoc"):
-        values = [item[key] for item in normalized if key in item]
-        if values:
-            resolved[key] = max(values)
 
     return resolved
 

@@ -81,6 +81,7 @@ class_load
 3. MQ、RPC、Webhook、缓存、Session 等对象恢复链路
 4. 多态类型绑定、反射创建、动态类加载、类名可控、Bean 绑定相关逻辑
 5. code map 标记的高风险模块和未覆盖区域
+6. 同一解析器、对象绑定器、反射创建逻辑在接口、消息、缓存、会话、导入导出之间复用的“同模式多入口”功能
 
 如果 code map 不存在、为空或明显不完整，则退化为源码检索与源码细读，并在结果中记录覆盖缺口。
 
@@ -104,6 +105,22 @@ class_load
 如发现某个入口、对象、状态变化或外部边界存在安全疑点，应回溯其相关入口、调用链、对象读写点和状态变化，再决定是否形成有效 finding。
 
 重点关注输入解析、对象恢复和危险对象链之间的关联关系。
+
+#### 覆盖闭环要求
+
+发现首个高置信反序列化、对象绑定或危险对象恢复问题后，不得立即结束。必须继续检查以下“同根因变体”：
+
+1. 同一解析器、绑定器、反射工具或类加载逻辑在接口、消息、缓存、Session、上传解析中的相邻路径
+2. 同一类型名、类名、字段映射、多态配置或对象恢复入口在不同协议与不同入口中的复用
+3. 同一危险对象链在不同触发点、不同对象恢复阶段、不同异步任务中的重复出现
+
+对每个候选变体，必须给出以下三种结论之一，禁止静默跳过：
+
+- 已形成 finding
+- 已回读源码并确认当前不可利用
+- 当前未完成覆盖，已在结果中记录为 coverage gap
+
+若多个入口属于同一对象恢复根因，可合并为一条 finding，但必须在标题、描述、evidence refs 或 reviewed_files 中清楚写出受影响范围；若根因不同，则拆分为多条 finding。
 
 #### 语言插件辅助资料（非必读）
 
@@ -142,7 +159,10 @@ workDir/agent-results/agent-static-deser.json
    - `fix.language`
    - `fix.before`
    - `fix.after`
-8. 参考 `core/coverage-gate.md` 记录本 Agent 可确认的覆盖信息；如无法准确汇总全局覆盖率，不要臆造最终 `coverage_summary`，最终汇总值由主流程统一生成
+8. 结果中应体现“覆盖闭环”结论：对已确认的同根因变体，要么并入 finding 影响范围，要么在 `reviewed_files` / 覆盖说明中明确写出已检查但未命中的相邻入口或剩余缺口
+9. Windows / PowerShell 环境下，若需回填长中文说明、HTML 片段、多行代码、带引号或反斜杠的证据文本，禁止直接在 shell 中拼接 JSON 覆盖结果文件；优先参考 `references/json-safe-update-static.md`
+10. 复杂说明性字段优先先写入临时 `.txt` 文件，再通过 `scripts/json_safe_update.py --set-file` 回填；对象或数组字段优先通过 `--set-json-file` / `--append-json-file` 回填
+11. 回填前后都必须确保目标 JSON 可被正常解析；若使用 `json_safe_update.py`，建议同时开启 `--check-text-quality`
 
 ### 阶段5：格式校验
 
@@ -153,6 +173,7 @@ references/agent-result-example.json
 ```
 
 确保结果 JSON 语法有效、层级正确、字段符合样例格式。
+Windows / PowerShell 下若结果中包含复杂说明文本，优先通过 `scripts/json_safe_update.py` 完成回填后再做校验。
 
 ## 静态 Agent 禁止事项
 

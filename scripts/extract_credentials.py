@@ -30,6 +30,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 # Windows GBK 终端中文乱码修复
 if sys.stdout.encoding and sys.stdout.encoding.lower() in ('gbk', 'cp936', 'cp950'):
@@ -46,7 +47,7 @@ except ImportError:
 
 
 # ── JWT 工具 ──────────────────────────────────────────────────
-def decode_jwt(token: str) -> dict | None:
+def decode_jwt(token: str) -> Optional[dict]:
     try:
         parts = token.split(".")
         if len(parts) != 3:
@@ -287,10 +288,10 @@ def extract_credentials_from_page(page, cookies_before=None,
 
 
 # ── 主捕获流程 ────────────────────────────────────────────────
-def capture_login(url: str, timeout: int, verify_url: str | None,
-                  output: str | None, role_label: str,
-                  hint_username: str | None, hint_password: str | None,
-                  manual_confirm: bool = False) -> dict | None:
+def capture_login(url: str, timeout: int, verify_url: Optional[str],
+                  output: Optional[str], role_label: str,
+                  hint_username: Optional[str], hint_password: Optional[str],
+                  manual_confirm: bool = False) -> Optional[dict]:
     """
     打开浏览器 → 显示凭证提示 → 等待登录（自动检测 OR 用户按 Enter）→ 提取凭证
     全程无 stdin 交互提示，可安全从模型 Bash 工具调用。
@@ -549,7 +550,7 @@ def _print_summary(role: dict):
 
 
 # ── CDP 模式 ──────────────────────────────────────────────────
-def cdp_capture(cdp_port: int, verify_url: str | None, output: str | None):
+def cdp_capture(cdp_port: int, verify_url: Optional[str], output: Optional[str]):
     """连接已有 Chrome/Edge 实例，直接提取当前页面凭证"""
     print(f"[*] 连接 CDP → 127.0.0.1:{cdp_port}")
     with sync_playwright() as p:

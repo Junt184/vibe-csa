@@ -66,6 +66,7 @@ python {SKILL_ROOT}/scripts/http_test.py --url "<URL>" --method <METHOD> \
 强制要求：
 
 - PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，请求体较长、包含二进制/换行优先使用 `--data-file`，避免受 shell 转义影响
+- PowerShell / Windows 环境下，若需把长中文说明、HTML、原始请求/响应报文、复杂正则、带引号或反斜杠的证据片段回填到 JSON，禁止直接在 shell 中拼接 JSON 字符串覆盖 finding 文件；必须优先参考 `references/json-safe-update-dynamic.md`，并通过 `scripts/json_safe_update.py` 从临时文本文件 / JSON 文件安全回填
 - 保持默认开启 `--show-command --show-summary --include-headers`，确保输出满足证据回填要求；仅在非取证探测且确无需要时才使用 `--no-*` 关闭
 - 大 HTML 响应必须限制输出行数，优先使用 `--response-max-lines 80` 或更小
 - 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）
@@ -187,6 +188,20 @@ python {SKILL_ROOT}/scripts/deserialization_payload.py \
 3. 一致性校验通过后，再把当前队列项写为 `done` 或 `failed`。
 4. 若队列中仍存在槽位一致的可领取的 `pending` 项，则回到“任务领取（每次单对 finding）”继续下一对；否则结束。
 
+若处于 Windows / PowerShell 环境，且存在以下任一情况，优先使用 `scripts/json_safe_update.py` 回填，而不是在 shell 中直接拼 JSON：
+
+- `poc.steps[].request` / `response` 里需要保留长文本、HTML 或多行报文
+- `dynamic_verification.runtime_notes`、`final_evidence.summary`、`attempts[].result` 包含中文长文本
+- 需要向 `dynamic_verification.attempts[]`、`poc.steps[]`、`poc.evidence[]` 追加结构化对象
+- 需要更新 `workDir/dynamic-state.json` 的队列状态
+
+建议顺序：
+
+1. 先把复杂文本写入临时 `.txt` 文件，把结构化对象写入临时 `.json` 文件
+2. 再调用 `scripts/json_safe_update.py --set-file / --set-json-file / --append-json-file`
+3. 更新 `dynamic-state.json` 时额外加 `--lock`
+4. 回填后再执行本文件要求的 JSON 合法性与一致性校验
+
 ### 重试与停止规则
 
 - 若验证不成功，应结合失败响应报文、源代码和 `static_finding_file` 中的上下文分析原因；必要时再参考 `analysis.bypass_strategy`、`analysis.verification_plan`，调整验证策略后重试。
@@ -278,6 +293,7 @@ step 3: 传入命令并在响应中看到 uid=... 或等价输出
 - 换行符必须写为 `\r\n` 或 `\n`，不得出现原始未转义换行
 - 双引号必须写为 `\"`
 - 反斜杠必须写为 `\\`
+- 在 Windows / PowerShell 环境中，优先把原始报文保存到临时文件，再使用 `scripts/json_safe_update.py --set-file` 或 `--append-json-file` 回填，避免手工转义
 - **回填完成后，必须用 `python -m json.tool` 或等效方式验证 JSON 合法性，不合法则禁止提交**
 
 ## 完成前一致性校验（硬门槛）

@@ -88,6 +88,8 @@ workDir/agent-results/agent-static-code-map.json
 
 如果文件存在，应先基于 code map 筛选审计目标，避免从零扫描全仓库。
 
+不得只把 code map 当作“单个代表入口”的导航。若 code map 中已存在入口族、相邻入口、同模式分组或未展开高风险模块线索，静态 Agent 结束前必须至少再检查一轮这些相邻路径，或在结果中显式记录剩余覆盖缺口。
+
 如果 code map 不存在、为空或明显不完整，则退化为源码检索与源码细读，并在结果中记录覆盖缺口。
 
 
@@ -100,10 +102,14 @@ workDir/agent-results/agent-static-code-map.json
 - 骨架文件字段和占位值可参考样例 `references/agent-result-example.json`
 - `findings` 可根据真实审计结果包含一条或多条项目
 - 每个 Agent 在成功发现到漏洞后，一定要在生成的json文件中包含修复建议，json字段包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`
-- 每个 Agent 须参考 `core/coverage-gate.md` 记录各自可确认的覆盖信息；如无法准确汇总全局覆盖率，不要臆造最终 `coverage_summary`，最终汇总值由汇总阶段统一生成
 - 当真实发现拆分为多个项目时，保留中文标题、中文 `vuln_type`、漏洞分类标签，并优先使用 `{SKILL_ROOT}/references/bug-categories.md` 中的 `vuln_type` 值
 - `title` 漏洞标题里不要有漏洞编号，优先使用“漏洞类型 + 关键对象/位置”的短语结构，长度尽量控制在 24 个汉字以内
 - 回填说明性文本字段（如：`title`、`description`、`impact`），默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
+- Windows / PowerShell 环境下，若需要把长中文说明、HTML 片段、多行代码片段、较长修复建议或带引号、反斜杠、换行的证据文本回填到 JSON，禁止直接在 shell 中拼接复杂 JSON 字符串覆盖结果文件；应优先参考 `{SKILL_ROOT}/references/json-safe-update-static.md`，并通过 `{SKILL_ROOT}/scripts/json_safe_update.py` 从临时文本文件 / JSON 文件安全回填
+- 发现首个高置信问题后，不得立即结束；必须对同模块、同入口族、同对象、同危险操作或同根因模式的相邻路径再做一轮“覆盖闭环”检查
+- 对覆盖闭环中出现的每个候选变体，必须给出以下三种结论之一：已形成 finding、已回读并确认当前不可利用、当前未完成覆盖且已记录为 coverage gap
+- 对同根因的重复变体，应显式选择“拆分为多条 finding”或“合并为一条带影响范围说明的 finding”；不得因已命中一个代表点而静默跳过其它变体
+- 结果中应体现覆盖闭环结论：对已确认的同根因变体，要么并入 finding 影响范围，要么在 `reviewed_files`、覆盖说明或缺口说明中明确写出已检查路径或剩余缺口
 - 回写完成后，确保最终 JSON 文件在语法上仍然有效
 
 
@@ -128,4 +134,11 @@ workDir/agent-results/agent-static-code-map.json
 ### 阶段4：最终格式校验
 
 **必须遵循**：每个 Agent 骨架文件完成所有静态审计、所有回填之后，须参考样例 `references/agent-result-example.json`，对各自的骨架文件进行严格的格式校验，须校验层级关系是否正确、所有字段是否符合样例 JSON 格式。
+
+在最终格式校验前，还应完成一次覆盖状态自检：
+
+- 若 code map 已标记 `coverage.known_gaps`、入口族、相邻入口或未展开高风险模块，而结果文件中完全没有相关说明，不应直接视为完成
+- 若同根因变体已被合并，应确认 finding 的标题、描述、evidence refs 或 reviewed_files 已清楚表达受影响范围
+- 若仍存在无法完成的高风险覆盖缺口，应在结果中显式保留，而不是在收尾阶段静默删除
+- 若使用了 `{SKILL_ROOT}/scripts/json_safe_update.py` 回填复杂字段，建议同时开启 `--check-text-quality`，并在回填后再次确认目标 JSON 可被正常解析
 

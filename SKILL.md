@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.16"
-  date: 2026-06-24
+  version: "1.0.17"
+  date: 2026-07-15
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -49,7 +49,7 @@ python {SKILL_ROOT}/scripts/install_sub_agents.py --provider qoder --force
 
 vibe-csa 使用统一 JSON 贯穿三个阶段；阶段必须严格划分，其中 Stage 2 为可选阶段。
 
-- Stage 1 静态代码审计：多 Agent 并行审计源码，输出 `workDir/agent-results/*.json`，再汇总生成 `workDir/static-merged.json`
+- Stage 1 静态代码审计：先启动 `static-code-map` Agent，生成并回填 `agent-static-code-map.json`；再并发执行 6 个静态审计 Agent：`static-injection`、`static-auth`、`static-file-ssrf`、`static-deser`、`static-logic`、`static-info`，分别生成并回填 `workDir/agent-results/*.json`；最后汇总并去重生成 `workDir/static-merged.json`
 - Stage 2 漏洞动态验证（可选）：基于 `workDir/static-merged.json` 生成验证队列与 finding 工作文件，最多并行创建 `5` 个 `dynamic-verifier` 子 Agent 领取任务、发送真实请求，并将运行时证据写回 finding 文件，最终生成 `workDir/dynamic-verified.json`
 - Stage 3 报告生成：基于 `workDir/static-merged.json` 或 `workDir/dynamic-verified.json` 生成 HTML 和 Word 报告
 
@@ -110,8 +110,11 @@ Stage 3 报告生成
 
 ## 全局硬规则
 
-1. 静态审计过程中，子 Agent 发现漏洞后，生成的 JSON 文件一定要包含代码级别的修复建议，包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`。
-2. 动态漏洞验证过程中，如果遇到登录验证码、MFA、SSO 时，只能使用 `scripts/extract_credentials.py` 让用户在浏览器中手动登录，禁止脚本猜测或破解验证码。
+1. Stage 1 的 `agent-static-code-map.json` 必须由 `static-code-map` 子 Agent 直接生成；`agent-static-*.json` 必须由对应同名静态子 Agent 直接生成。主流程只负责调度、检查、汇总与导出，禁止代写这些结果文件。
+2. Stage 1 中，6 个静态审计 Agent 必须优先读取 `workDir/agent-results/agent-static-code-map.json`；若该文件缺失、为空或无效 JSON，可降级为源码直读，但必须在各自结果中记录覆盖缺口。
+3. 静态审计过程中，子 Agent 发现漏洞后，生成的 JSON 文件必须包含代码级修复建议：`fix.language`、`fix.before`、`fix.after`。
+4. 动态漏洞验证过程中，如果遇到登录验证码、MFA、SSO 时，只能使用 `scripts/extract_credentials.py` 让用户在浏览器中手动登录，禁止脚本猜测或破解验证码。
+5. Windows / PowerShell 环境下，若需要把长中文说明、HTML、原始请求/响应报文或带大量引号、反斜杠、换行的证据回填到 JSON，`Stage 1` 优先参考 `references/json-safe-update-static.md`，`Stage 2` 优先参考 `references/json-safe-update-dynamic.md`，并通过 `scripts/json_safe_update.py` 从临时文本文件 / JSON 文件安全回填；不要在 shell 中直接拼接复杂 JSON 字符串覆盖结果文件。
 
 ## 阶段入口
 
@@ -120,7 +123,7 @@ Stage 3 报告生成
 #### Stage 1.0 构建代码事实图谱
 
 - 在启动 6 个静态漏洞审计 Agent 前，必须先启动 `static-code-map` Agent。
-- `static-code-map` 负责抽取项目入口、身份权限上下文、关键业务对象、调用链、危险操作、状态变化、外部边界与安全相关配置引用。
+- `static-code-map` 负责抽取项目入口、身份权限上下文、关键业务对象、调用链、危险操作、状态变化、外部边界与安全相关配置引用，并直接写入结果文件。
 - `static-code-map` 输出：
 
 ```text
@@ -129,6 +132,7 @@ workDir/agent-results/agent-static-code-map.json
 
 - `agent-static-code-map.json` 是后续静态漏洞审计 Agent 的共享事实索引，不是漏洞结果文件。
 - `static-code-map` 不输出 `findings`，不生成 PoC，不设置漏洞状态，不参与 `merge_static_results.py` 的漏洞合并。
+- 主流程不得根据子 Agent 摘要自行拼装或代写 `agent-static-code-map.json`。
 - 如果 `agent-static-code-map.json` 生成失败、为空或覆盖不足，后续 6 个静态漏洞审计 Agent 仍可继续执行，但必须退化为源码检索与源码细读，并在各自结果的覆盖信息中记录缺口。
 
 #### Stage 1.1 multi Agent 运行静态审计
@@ -167,9 +171,12 @@ workDir/agent-results/agent-static-code-map.json
 - 每个 Agent 应根据自身职责筛选 code map 中的 `entrypoints`、`auth_model`、`objects`、`operations`、`state_changes`、`external_boundaries`、`config_refs`，只对相关高风险路径回读源码。
 - `agent-static-code-map.json` 只能作为导航和事实索引，漏洞判断必须以源码证据为准。
 - 如果发现 code map 缺失或错误，应以源码为准，并在自身结果中记录补充事实或覆盖缺口。
+- 每个 Agent 必须直接回填并保存自己的 `workDir/agent-results/agent-static-*.json`；主流程不得代写或汇总代写单个静态 Agent 结果文件。
+- 每个 Agent 在发现首个高置信问题后，不得立即结束；必须对同模块、同入口族、同对象、同危险操作或同根因模式的相邻路径再做一轮“覆盖闭环”检查，避免只命中代表点而漏掉同类变体。
+- 若 code map 已标记 `high_risk_modules` 或 `known_gaps`，相关 Agent 在结束前必须至少回读一次对应模块中的未展开入口、相邻方法或同族调用；若仍无法完成覆盖，必须在结果中明确记录缺口，而不是静默跳过。
+- 对同根因的重复变体，Agent 应在“拆分为多条 finding”和“合并为一条带多位置/多入口说明的 finding”之间做显式选择；无论采用哪种方式，都必须确保影响范围被完整表达。
 - 每个 Agent 需要将各自骨架文件的所有字段基于审计结果回填，不得回填虚假数据。
 - `findings` 字段可结合实际漏洞审计结果扩展多条，漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `references/bug-categories.md` 选择。
-- 每个 Agent 须参考 `core/coverage-gate.md` 记录各自可确认的覆盖信息；如无法准确汇总全局覆盖率，不要臆造最终 `coverage_summary`，最终汇总值由汇总阶段统一生成。
 - 每个 Agent 在成功发现漏洞后，必须在生成的 JSON 文件中包含修复建议，包括：
 
   - `fix.language`
