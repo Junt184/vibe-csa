@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compute report-side reviewed_files and EALOC from final findings JSON."""
+"""Compute report-side reviewed_files and EALOC for generated reports."""
 
 from __future__ import annotations
 
@@ -52,6 +52,15 @@ IGNORED_DIR_NAMES = {
 
 IGNORED_PATH_PARTS = {
     ("ThinkPHP", "Library", "Vendor"),
+}
+
+STATIC_AGENT_FILES = {
+    "agent-static-injection.json",
+    "agent-static-auth.json",
+    "agent-static-file-ssrf.json",
+    "agent-static-deser.json",
+    "agent-static-logic.json",
+    "agent-static-info.json",
 }
 
 
@@ -109,14 +118,30 @@ def _is_candidate_source_file(rel_path: str) -> bool:
     return not _has_ignored_path_parts(path.parts)
 
 
-def _iter_candidate_files(findings: list[dict[str, Any]]) -> list[str]:
+def _extract_reviewed_paths(value: Any) -> list[str]:
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    seen: set[str] = set()
+    files: list[str] = []
+    for item in value or []:
+        rel = ""
+        if isinstance(item, dict):
+            rel = _normalize_relative_path(item.get("file"))
+        else:
+            rel = _normalize_relative_path(item)
+        if rel and rel not in seen and _is_candidate_reviewed_file(rel):
+            seen.add(rel)
+            files.append(rel)
+    return files
+
+
+def _iter_finding_candidate_files(findings: list[dict[str, Any]]) -> list[str]:
     seen: set[str] = set()
     files: list[str] = []
     for finding in findings:
         static = (finding.get("static_evidence") or {})
-        for item in static.get("reviewed_files") or []:
-            rel = _normalize_relative_path((item or {}).get("file"))
-            if rel and rel not in seen and _is_candidate_reviewed_file(rel):
+        for rel in _extract_reviewed_paths(static.get("reviewed_files")):
+            if rel not in seen:
                 seen.add(rel)
                 files.append(rel)
 
@@ -124,6 +149,27 @@ def _iter_candidate_files(findings: list[dict[str, Any]]) -> list[str]:
         if rel and rel not in seen and _is_candidate_reviewed_file(rel):
             seen.add(rel)
             files.append(rel)
+    return files
+
+
+def _iter_agent_candidate_files(agent_results_dir: Path) -> list[str]:
+    seen: set[str] = set()
+    files: list[str] = []
+    for path in sorted(agent_results_dir.glob("agent-static-*.json")):
+        if path.name not in STATIC_AGENT_FILES:
+            continue
+        try:
+            import json
+
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+
+        coverage = ((payload.get("audit") or {}).get("coverage_summary") or {})
+        for rel in _extract_reviewed_paths(coverage.get("reviewed_files")):
+            if rel not in seen:
+                seen.add(rel)
+                files.append(rel)
     return files
 
 
@@ -221,11 +267,7 @@ def _count_effective_loc(file_path: Path) -> int:
     return count
 
 
-def compute_report_coverage(data: dict[str, Any], base_dir: str | Path | None = None) -> dict[str, int]:
-    findings = [item for item in (data.get("findings") or []) if isinstance(item, dict)]
-    source_root = _resolve_source_root(data, base_dir)
-    candidate_files = _iter_candidate_files(findings)
-
+def _collect_existing_files(source_root: Path | None, candidate_files: list[str]) -> list[Path]:
     existing_files: list[Path] = []
     seen_paths: set[Path] = set()
     for rel_path in candidate_files:
@@ -233,6 +275,21 @@ def compute_report_coverage(data: dict[str, Any], base_dir: str | Path | None = 
         if resolved and resolved not in seen_paths:
             seen_paths.add(resolved)
             existing_files.append(resolved)
+    return existing_files
+
+
+def compute_report_coverage(data: dict[str, Any], base_dir: str | Path | None = None) -> dict[str, int]:
+    findings = [item for item in (data.get("findings") or []) if isinstance(item, dict)]
+    source_root = _resolve_source_root(data, base_dir)
+
+    agent_candidate_files: list[str] = []
+    if base_dir:
+        agent_results_dir = Path(base_dir).resolve() / "agent-results"
+        if agent_results_dir.exists():
+            agent_candidate_files = _iter_agent_candidate_files(agent_results_dir)
+
+    candidate_files = agent_candidate_files or _iter_finding_candidate_files(findings)
+    existing_files = _collect_existing_files(source_root, candidate_files)
 
     source_files = [
         path for path in existing_files
