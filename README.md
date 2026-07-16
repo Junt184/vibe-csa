@@ -102,8 +102,8 @@ playwright install chromium
 
 ```text
 使用 `vibe-csa` 技能对当前目录源码做静态审计：
-1. 先启动 `static-code-map` agent，并由它直接生成 `workDir/agent-results/agent-static-code-map.json`；
-2. 再真实并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
+1. 先启动 `static-code-map` agent，并由它生成 `workDir/agent-results/agent-static-code-map.json`；
+2. 再并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
 3. 最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用去重脚本清除重复漏洞项。
 
 将最终 JSON 报告生成 HTML 和 Word 报告：使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
@@ -114,8 +114,8 @@ playwright install chromium
 ```text
 阶段一：静态审计
 使用 `vibe-csa` 技能对当前目录源码做静态审计：
-1. 先启动 `static-code-map` agent，并由它直接生成 `workDir/agent-results/agent-static-code-map.json`；
-2. 再真实并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
+1. 先启动 `static-code-map` agent，并由它生成 `workDir/agent-results/agent-static-code-map.json`；
+2. 再并发启动 6 个静态审计 agent；每个 agent 必须先读取 `agent-static-code-map.json`，再由各自直接生成并回填自己的 `workDir/agent-results/agent-static-*.json`；
 3. 最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`，并使用去重脚本清除重复漏洞项。
 
 阶段二：动态漏洞验证

@@ -101,8 +101,8 @@ It is recommended to use a separate working directory for each code audit task t
 
 ```text
 Use the `vibe-csa` skill to perform a static audit on the source code in the current directory:
-1. First, launch the `static-code-map` agent and have it directly generate `workDir/agent-results/agent-static-code-map.json`;
-2. Then launch 6 static audit agents in real parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
+1. First, launch the `static-code-map` agent and have it generate `workDir/agent-results/agent-static-code-map.json`;
+2. Then launch 6 static audit agents in parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
 3. Finally, use the `merge_static_results.py` script to aggregate the results into `workDir/static-merged.json`, and run the deduplication script to remove duplicate vulnerability items.
 
 Generate HTML and Word reports from the final JSON report: use the `scripts/vibe_csa_html.py` and `scripts/vibe_csa_report.py` scripts to export stable report results.
@@ -113,8 +113,8 @@ Generate HTML and Word reports from the final JSON report: use the `scripts/vibe
 ```text
 Stage 1: Static Audit
 Use the `vibe-csa` skill to perform a static audit on the source code in the current directory:
-1. First, launch the `static-code-map` agent and have it directly generate `workDir/agent-results/agent-static-code-map.json`;
-2. Then launch 6 static audit agents in real parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
+1. First, launch the `static-code-map` agent and have it generate `workDir/agent-results/agent-static-code-map.json`;
+2. Then launch 6 static audit agents in parallel; each agent must read `agent-static-code-map.json` first, then directly generate and write back its own `workDir/agent-results/agent-static-*.json`;
 3. Finally, use the `merge_static_results.py` script to aggregate the results into `workDir/static-merged.json`, and run the deduplication script to remove duplicate vulnerability items.
 
 Stage 2: Dynamic Vulnerability Verification
