@@ -11,6 +11,22 @@ import time
 import urllib.parse
 from typing import Dict, List, Tuple
 
+# 终端编码: 统一以 UTF-8 输出（errors=replace 兜底），避免响应体含 GBK 无法表示的
+# 字符（如 BOM/版权符号）在 cp936 终端或管道下触发 UnicodeEncodeError 导致崩溃
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except (AttributeError, OSError, ValueError):
+    import io as _io
+    try:
+        sys.stdout = _io.open(sys.stdout.fileno(), mode='w', encoding='utf-8', errors='replace', buffering=1)
+    except Exception:
+        pass
+    try:
+        sys.stderr = _io.open(sys.stderr.fileno(), mode='w', encoding='utf-8', errors='replace', buffering=1)
+    except Exception:
+        pass
+
 try:
     import httpx
 except ImportError:

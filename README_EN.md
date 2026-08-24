@@ -6,7 +6,7 @@
 
 # Vibe CSA
 
-> Current Version: v1.0.17
+> Current Version: v1.0.18
 
 Vibe CSA (Code Security Audit) is a code audit tool based on AI Agent architecture, adopting a multi-Agent parallel execution architecture. It statically audits source code with a "God's eye view" and dynamically verifies vulnerabilities through "combat simulation", ensuring the comprehensiveness and accuracy of Web vulnerability discovery, outputting stable and reliable security reports, and providing actionable remediation recommendations. Main capabilities: AI Code Audit and AI Vulnerability Assessment.
 
