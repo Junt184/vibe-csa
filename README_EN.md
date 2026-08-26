@@ -6,7 +6,7 @@
 
 # Vibe CSA
 
-> Current Version: v1.0.18
+> Current Version: v1.0.19
 
 Vibe CSA (Code Security Audit) is a code audit tool based on AI Agent architecture, adopting a multi-Agent parallel execution architecture. It statically audits source code with a "God's eye view" and dynamically verifies vulnerabilities through "combat simulation", ensuring the comprehensiveness and accuracy of Web vulnerability discovery, outputting stable and reliable security reports, and providing actionable remediation recommendations. Main capabilities: AI Code Audit and AI Vulnerability Assessment.
 
@@ -127,7 +127,7 @@ Username: admin
 Password: 123456
 Login Method: You invoke `scripts/extract_credentials.py` to open the browser, and I will manually enter the credentials to log in
 
-White hat professional ethics: Allowed to delete, update, and clean up data created by yourself, files uploaded by yourself, and records inserted by yourself during the testing process, in order to verify deletion/editing/recovery/recycling vulnerabilities; prohibited from performing destructive operations on original business data, others' data, and production data. Allowed to upload files for file upload testing.
+White hat professional ethics: Allowed to delete, modify, restore, and clean up data created by yourself, files uploaded by yourself, and records inserted by yourself during testing, in order to verify the relevant security risks; prohibited from destroying original business data, real user accounts and sessions, production data, or business objects beyond the purpose of verification; all testing actions should follow the principle of minimal impact, and stop unnecessary repeated exploitation and spreading operations once valid evidence has been obtained.
 
 Stage 3: Report Generation
 Generate HTML and Word reports from the final JSON report: use the `scripts/vibe_csa_html.py` and `scripts/vibe_csa_report.py` scripts to export stable report results.
