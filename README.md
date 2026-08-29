@@ -76,11 +76,21 @@ git clone https://gitee.com/ok-helloworld/vibe-csa
 先安装 Python 依赖：
 
 ```bash
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet semgrep
 ```
 
 再安装 Playwright 浏览器依赖，遇到复杂验证码可以调用脚本手工输入账号密码：
 ```bash
+playwright install chromium
+```
+
+如果下载卡住或过慢，先切换到国内镜像再安装：
+```bash
+# Linux/macOS
+export PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+# Windows PowerShell（Windows CMD 用 set）
+$env:PLAYWRIGHT_DOWNLOAD_HOST="https://cdn.npmmirror.com/binaries/playwright"
+
 playwright install chromium
 ```
 

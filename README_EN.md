@@ -75,11 +75,21 @@ Python 3.10+ is recommended
 First install the Python dependencies:
 
 ```bash
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet semgrep
 ```
 
 Then install the Playwright browser dependency. If you encounter complex CAPTCHAs, you can invoke the script to open the browser and manually enter the account credentials:
 ```bash
+playwright install chromium
+```
+
+If the download gets stuck or is too slow, switch to a domestic mirror first, then install:
+```bash
+# Linux/macOS
+export PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+# Windows PowerShell (use set on Windows CMD)
+$env:PLAYWRIGHT_DOWNLOAD_HOST="https://cdn.npmmirror.com/binaries/playwright"
+
 playwright install chromium
 ```
 
