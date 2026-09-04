@@ -27,7 +27,7 @@ Project Features:
 
 ## Flow Diagram
 
-![Flow Diagram](vibe-csa_v1.0.png)
+![Flow Diagram](vibe-csa_en_v1.0.png)
 
 ## Prompt Examples (Highly Recommended)
 
