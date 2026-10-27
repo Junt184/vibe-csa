@@ -644,6 +644,22 @@ def _safe_int(value, default: int = 0) -> int:
         return default
 
 
+def _agent_tokens(name: str) -> set[str]:
+    raw = str(name or "").lower().replace("_", "-").replace("/", "-")
+    tokens = {t for t in raw.split("-") if t and t not in {"agent", "static"}}
+    return tokens
+
+
+def _same_agent(a: str, b: str) -> bool:
+    """Same agent may be named 'static-injection' in one place and 'Agent-Injection' in another."""
+    if not a or not b:
+        return False
+    if str(a).strip().lower() == str(b).strip().lower():
+        return True
+    ta, tb = _agent_tokens(a), _agent_tokens(b)
+    return bool(ta) and ta == tb
+
+
 def _same_file(a: str, b: str) -> bool:
     a, b = a.strip().lstrip("./"), b.strip().lstrip("./")
     if not a or not b:
@@ -655,10 +671,13 @@ def _ranges_overlap(a: dict, b: dict) -> bool:
     af, bf = str(a.get("file", "")), str(b.get("file", ""))
     if not _same_file(af, bf):
         return False
-    a0 = _safe_int(a.get("line_start"), 1)
+    a0 = _safe_int(a.get("line_start"), 0)
     a1 = _safe_int(a.get("line_end"), a0) or a0
-    b0 = _safe_int(b.get("line_start"), 1)
+    b0 = _safe_int(b.get("line_start"), 0)
     b1 = _safe_int(b.get("line_end"), b0) or b0
+    if a0 <= 0 or b0 <= 0:
+        # 任一方没有行号时退化为文件级匹配，避免漏掉纯文本排除
+        return True
     return a0 <= b1 and b0 <= a1
 
 
@@ -709,8 +728,20 @@ def collect_exclusions(items: list[tuple[Path, dict]]) -> list[dict]:
         raw_list = data.get("exclusions")
         if raw_list is None:
             raw_list = (data.get("audit") or {}).get("x_exclusions")
-        for idx, raw in enumerate(raw_list or [], start=1):
-            exclusion = normalize_exclusion(raw, agent_name, idx)
+        if not isinstance(raw_list, list):
+            raw_list = []
+        # 同一 agent 文件内的 findings 可能使用更友好的标签（如 Agent-Injection），
+        # 排除项继承该标签，避免把自身结论误判成跨 agent 冲突。
+        inherited = next(
+            (
+                str((f.get("static_evidence") or {}).get("agent"))
+                for f in (data.get("findings") or [])
+                if isinstance(f, dict) and (f.get("static_evidence") or {}).get("agent")
+            ),
+            None,
+        )
+        for idx, raw in enumerate(raw_list, start=1):
+            exclusion = normalize_exclusion(raw, inherited or agent_name, idx)
             if not exclusion:
                 continue
             key = (
@@ -731,7 +762,10 @@ def detect_contradictions(findings: list[dict], exclusions: list[dict]) -> list[
     contradictions: list[dict] = []
     for exclusion in exclusions:
         for finding in findings:
-            if finding.get("static_evidence", {}).get("agent") == exclusion.get("agent"):
+            if _same_agent(
+                finding.get("static_evidence", {}).get("agent", ""),
+                exclusion.get("agent", ""),
+            ):
                 continue
             if not _ranges_overlap(finding.get("location") or {}, exclusion.get("location") or {}):
                 continue

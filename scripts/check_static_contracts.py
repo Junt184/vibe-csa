@@ -65,6 +65,13 @@ def _reviewed_files_from_agents(agent_dir: str | None) -> set[str]:
     return files
 
 
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _check_exclusions(report: dict) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -78,7 +85,7 @@ def _check_exclusions(report: dict) -> tuple[list[str], list[str]]:
         evidence = exclusion.get("evidence") or []
         usable = [
             e for e in evidence
-            if isinstance(e, dict) and str(e.get("file") or "").strip() and int(e.get("line") or 0) > 0
+            if isinstance(e, dict) and str(e.get("file") or "").strip() and _to_int(e.get("line")) > 0
         ]
         if not usable:
             errors.append(f"{eid}: 缺少源码级证据（evidence[].file + line），该排除不成立")
@@ -141,12 +148,25 @@ def _check_coverage(report: dict, code_map: dict | None, agent_dir: str | None) 
         warnings.append("code-map 中没有 entrypoints，覆盖率门禁无对象")
         return errors, warnings
 
+    def _covers(source: str) -> bool:
+        src = str(source).strip().lstrip("./")
+        src_name = src.rsplit("/", 1)[-1]
+        for item in reviewed:
+            cand = str(item).strip().lstrip("./")
+            if not cand:
+                continue
+            if cand == src or src.endswith("/" + cand) or cand.endswith("/" + src):
+                return True
+            if cand.rsplit("/", 1)[-1] == src_name:
+                return True
+        return False
+
     missing: list[str] = []
     for entrypoint in entrypoints:
         source = (entrypoint.get("source") or {}).get("file")
         if not source:
             continue
-        if not any(str(source).endswith(r) or r.endswith(str(source)) for r in reviewed):
+        if not _covers(source):
             missing.append(f"{entrypoint.get('id', '?')}:{source}")
 
     if missing:
@@ -174,12 +194,11 @@ def main() -> None:
     errors: list[str] = []
     warnings: list[str] = []
 
-    for fn, extra in (
-        (lambda: _check_exclusions(report), ()),
-        (lambda: _check_contradictions(report, args.allow_open_contradictions), ()),
-        (lambda: _check_findings(report), ()),
+    for errs, warns in (
+        _check_exclusions(report),
+        _check_contradictions(report, args.allow_open_contradictions),
+        _check_findings(report),
     ):
-        errs, warns = fn(*extra)
         errors.extend(errs)
         warnings.extend(warns)
 

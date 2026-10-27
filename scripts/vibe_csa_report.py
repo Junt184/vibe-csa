@@ -990,11 +990,13 @@ def generate_report(data, logo_path, output_path):
     role_cn = {'entry': '入口', 'pivot': '跳板', 'escalation': '升级', 'payload': '载荷', 'exfil': '外传'}
     verdict_cn = {'not_vulnerable': '已排除', 'out_of_scope': '超出范围', 'blocked': '受阻未验'}
 
+    section_no = 2  # 一、执行摘要 / 二、漏洞详情
     if chains or exclusions or contradictions:
         doc.add_page_break()
 
     if chains:
-        add_heading_custom(doc, '三、攻击链分析', level=1)
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、攻击链分析", level=1)
         for chain in chains:
             add_heading_custom(doc, f"{chain.get('chain_id','')} {chain.get('title','')}", level=2,
                                color=COLORS['text_gray'])
@@ -1011,7 +1013,8 @@ def generate_report(data, logo_path, output_path):
     if exclusions:
         if not chains:
             doc.add_page_break()
-        add_heading_custom(doc, '四、已排除假设（负向结论）', level=1)
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、已排除假设（负向结论）", level=1)
         add_paragraph_custom(
             doc,
             '下列候选在审计被否证或降级。缺少源码级证据的排除不成立，不得计入覆盖率。',
@@ -1033,7 +1036,8 @@ def generate_report(data, logo_path, output_path):
             )
 
     if contradictions:
-        add_heading_custom(doc, '五、跨 Agent 结论冲突', level=1)
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、跨 Agent 结论冲突", level=1)
         table = doc.add_table(rows=1, cols=4)
         table.style = 'Table Grid'
         for cell, text in zip(table.rows[0].cells, ['编号', '冲突主题', '状态', '处理结论']):
