@@ -637,6 +637,118 @@ def format_path(path: list[Any]) -> str:
     return ".".join(parts) if parts else "(root)"
 
 
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _same_file(a: str, b: str) -> bool:
+    a, b = a.strip().lstrip("./"), b.strip().lstrip("./")
+    if not a or not b:
+        return False
+    return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+
+
+def _ranges_overlap(a: dict, b: dict) -> bool:
+    af, bf = str(a.get("file", "")), str(b.get("file", ""))
+    if not _same_file(af, bf):
+        return False
+    a0 = _safe_int(a.get("line_start"), 1)
+    a1 = _safe_int(a.get("line_end"), a0) or a0
+    b0 = _safe_int(b.get("line_start"), 1)
+    b1 = _safe_int(b.get("line_end"), b0) or b0
+    return a0 <= b1 and b0 <= a1
+
+
+def normalize_exclusion(raw: dict, agent_name: str, index: int) -> dict | None:
+    """Normalize one agent-declared negative conclusion (exclusion).
+
+    An exclusion only counts when it carries source-level evidence; otherwise it is
+    dropped and reported later by check_static_contracts.py.
+    """
+    if not isinstance(raw, dict):
+        return None
+    location = raw.get("location") or {}
+    evidence = []
+    for item in raw.get("evidence") or []:
+        if not isinstance(item, dict):
+            continue
+        f = str(item.get("file") or location.get("file") or "").strip()
+        if not f:
+            continue
+        evidence.append({
+            "file": f,
+            "line": _safe_int(item.get("line"), _safe_int(location.get("line_start"), 1)) or 1,
+            "note": str(item.get("note") or ""),
+        })
+    verdict = str(raw.get("verdict") or "not_vulnerable").strip().lower()
+    if verdict not in {"not_vulnerable", "out_of_scope", "blocked"}:
+        verdict = "not_vulnerable"
+    return {
+        "exclusion_id": str(raw.get("exclusion_id") or f"EX-{index:03d}"),
+        "title": str(raw.get("title") or raw.get("hypothesis") or "excluded hypothesis"),
+        "agent": str(raw.get("agent") or agent_name),
+        "location": {
+            "file": str(location.get("file") or (evidence[0]["file"] if evidence else "")),
+            "line_start": _safe_int(location.get("line_start"), evidence[0]["line"] if evidence else 0),
+            "line_end": _safe_int(location.get("line_end"), _safe_int(location.get("line_start"), evidence[0]["line"] if evidence else 0)),
+        },
+        "hypothesis": str(raw.get("hypothesis") or raw.get("title") or "unknown hypothesis"),
+        "reason": str(raw.get("reason") or raw.get("notes") or ""),
+        "evidence": evidence,
+        "verdict": verdict,
+    }
+
+
+def collect_exclusions(items: list[tuple[Path, dict]]) -> list[dict]:
+    seen: dict[tuple, dict] = {}
+    for path, data in items:
+        agent_name = str(data.get("agent") or path.stem)
+        raw_list = data.get("exclusions")
+        if raw_list is None:
+            raw_list = (data.get("audit") or {}).get("x_exclusions")
+        for idx, raw in enumerate(raw_list or [], start=1):
+            exclusion = normalize_exclusion(raw, agent_name, idx)
+            if not exclusion:
+                continue
+            key = (
+                exclusion["location"].get("file", ""),
+                exclusion["location"].get("line_start", 0),
+                exclusion["hypothesis"].strip().lower(),
+            )
+            if key not in seen:
+                seen[key] = exclusion
+    result = sorted(seen.values(), key=lambda e: (e["location"].get("file", ""), e["location"].get("line_start", 0)))
+    for idx, exclusion in enumerate(result, start=1):
+        exclusion["exclusion_id"] = f"EX-{idx:03d}"
+    return result
+
+
+def detect_contradictions(findings: list[dict], exclusions: list[dict]) -> list[dict]:
+    """Flag cross-agent conflicts: an agent excluded exactly what another agent reported."""
+    contradictions: list[dict] = []
+    for exclusion in exclusions:
+        for finding in findings:
+            if finding.get("static_evidence", {}).get("agent") == exclusion.get("agent"):
+                continue
+            if not _ranges_overlap(finding.get("location") or {}, exclusion.get("location") or {}):
+                continue
+            contradictions.append({
+                "contradiction_id": "",
+                "topic": f"{exclusion['hypothesis']} vs {finding.get('title')}",
+                "status": "open",
+                "finding_ids": [finding.get("vuln_id", "")],
+                "exclusion_ids": [exclusion.get("exclusion_id", "")],
+                "resolution": "",
+                "evidence": exclusion.get("evidence", []),
+            })
+    for idx, contradiction in enumerate(contradictions, start=1):
+        contradiction["contradiction_id"] = f"CX-{idx:03d}"
+    return contradictions
+
+
 def validate_stage1_report(report: dict) -> tuple[list[dict], list[str]]:
     errors: list[dict] = []
     warnings: list[str] = []
@@ -696,6 +808,7 @@ def main() -> None:
                 findings_by_key[key] = finding
                 next_index += 1
 
+    exclusions = collect_exclusions(items)
     audit["coverage_summary"] = resolve_merged_coverage(coverage_candidates)
     findings = sorted(
         findings_by_key.values(),
@@ -705,7 +818,15 @@ def main() -> None:
         finding["vuln_id"] = f"FINDING-{idx:03d}"
 
     compute_summary(audit, findings)
-    report = {"schema_version": "3.0", "audit": audit, "chains": [], "findings": findings}
+    contradictions = detect_contradictions(findings, exclusions)
+    report = {
+        "schema_version": "3.0",
+        "audit": audit,
+        "chains": [],
+        "findings": findings,
+        "exclusions": exclusions,
+        "contradictions": contradictions,
+    }
 
     errors, warnings = validate_stage1_report(report)
     if errors:
@@ -717,7 +838,12 @@ def main() -> None:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"[OK] merged {len(items)} agent file(s), findings={len(findings)}, output={output}")
+    open_contradictions = sum(1 for c in contradictions if c.get("status") == "open")
+    print(
+        f"[OK] merged {len(items)} agent file(s), findings={len(findings)}, "
+        f"exclusions={len(exclusions)}, contradictions={len(contradictions)} "
+        f"(open={open_contradictions}), output={output}"
+    )
 
 
 if __name__ == "__main__":
