@@ -136,6 +136,9 @@ def _check_coverage(report: dict, code_map: dict | None, agent_dir: str | None) 
     if not code_map:
         warnings.append("未提供 code-map，跳过入口覆盖率门禁")
         return errors, warnings
+    if not agent_dir:
+        warnings.append("未提供 --agent-dir，无法验证 reviewed_files，跳过入口覆盖率门禁")
+        return errors, warnings
 
     reviewed = _reviewed_files_from_agents(agent_dir)
     for finding in report.get("findings") or []:
